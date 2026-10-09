@@ -7,7 +7,6 @@
   "compilerOptions": {
     "noImplicitAny": false,
     "paths": {
-      "@convex/*": ["./convex/*"],
       "@/*": ["./src/*"]
     }
   }

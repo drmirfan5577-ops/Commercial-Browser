@@ -1,23 +1,57 @@
-import { HerculesAuthProvider } from "@usehercules/auth/react";
+import { useCallback, useEffect, useState } from "react";
+import { getUser, handleAuthCallback, onAuthChange } from "@netlify/identity";
+import type { CallbackResult, User } from "@netlify/identity";
+import { AuthContext } from "@/lib/auth-context.ts";
+
+let initialCallback: Promise<CallbackResult | null> | undefined;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [callback, setCallback] = useState<CallbackResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    const currentUser = await getUser();
+    setUser(currentUser);
+    if (currentUser) setError(null);
+  }, []);
+  const clearCallback = useCallback(() => setCallback(null), []);
+
+  useEffect(() => {
+    let active = true;
+    const unsubscribe = onAuthChange((_event, currentUser) => {
+      if (active) setUser(currentUser);
+    });
+    initialCallback ??= handleAuthCallback();
+    void (async () => {
+      try {
+        const result = await initialCallback;
+        const currentUser = await getUser();
+        if (active) {
+          setCallback(result ?? null);
+          setUser(currentUser);
+        }
+      } catch {
+        if (active)
+          setError(
+            "The sign-in link could not be verified. Please request a new link.",
+          );
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
   return (
-    <HerculesAuthProvider
-      authority={import.meta.env.VITE_HERCULES_OIDC_AUTHORITY!}
-      client_id={import.meta.env.VITE_HERCULES_OIDC_CLIENT_ID!}
-      userManagerSettings={{
-        prompt: import.meta.env.VITE_HERCULES_OIDC_PROMPT ?? "select_account",
-        response_type:
-          import.meta.env.VITE_HERCULES_OIDC_RESPONSE_TYPE ?? "code",
-        scope:
-          import.meta.env.VITE_HERCULES_OIDC_SCOPE ??
-          "openid profile email offline_access",
-        redirect_uri:
-          import.meta.env.VITE_HERCULES_OIDC_REDIRECT_URI ??
-          `${window.location.origin}/auth/callback`,
-      }}
+    <AuthContext.Provider
+      value={{ user, isLoading, callback, error, refresh, clearCallback }}
     >
       {children}
-    </HerculesAuthProvider>
+    </AuthContext.Provider>
   );
 }

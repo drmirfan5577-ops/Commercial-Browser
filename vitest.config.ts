@@ -5,7 +5,6 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     alias: {
-      "@/convex": path.resolve(__dirname, "./convex"),
       "@": path.resolve(__dirname, "./src"),
     },
   },
@@ -16,9 +15,9 @@ export default defineConfig({
       {
         extends: true,
         test: {
-          name: "convex",
-          environment: "edge-runtime",
-          include: ["convex/**/*.test.{ts,js}"],
+          name: "backend",
+          environment: "node",
+          include: ["netlify/**/*.test.{ts,mts}"],
         },
       },
       {
