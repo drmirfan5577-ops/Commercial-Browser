@@ -17,5 +17,10 @@
     /* Linting */
     "strict": true
   },
-  "include": ["vite.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "drizzle.config.ts",
+    "db/**/*.ts",
+    "netlify/functions/**/*.mts"
+  ]
 }

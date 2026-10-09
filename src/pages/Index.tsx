@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api.js";
+import { Link } from "react-router-dom";
+import { toast } from "sonner";
+import { useAppData, useSaveTheme } from "@/hooks/use-app-data.ts";
+import { useAuth } from "@/hooks/use-auth.ts";
 import { motion, AnimatePresence } from "motion/react";
 import { THEMES, getTheme } from "@/lib/themes.ts";
 import type { Theme } from "@/lib/themes.ts";
@@ -254,20 +256,14 @@ function EsbOrb({ theme, onClick }: { theme: Theme; onClick: () => void }) {
 
 // ─── Admin Panel ──────────────────────────────────────────────────────────────
 
-const ADMIN_PASSWORD = "ESB@Admin2024";
 
 function AdminPanel({ theme, onClose }: { theme: Theme; onClose: () => void }) {
-  const [authed, setAuthed] = useState(false);
-  const [pw, setPw] = useState("");
-  const [pwError, setPwError] = useState(false);
+  const { user, isLoading } = useAuth();
+  const authed = user?.roles?.includes("admin") ?? false;
   const [activeSection, setActiveSection] = useState<"stats" | "content" | "security" | "logos">("stats");
-  const tickers = useQuery(api.appData.getTickers);
-  const customApps = useQuery(api.appData.getCustomApps);
-
-  const handleLogin = () => {
-    if (pw === ADMIN_PASSWORD) { setAuthed(true); setPwError(false); }
-    else { setPwError(true); }
-  };
+  const { data } = useAppData();
+  const tickers = data?.tickers;
+  const customApps = data?.customApps;
 
   const bg = theme.gradient;
   const card = theme.cardBg;
@@ -284,23 +280,8 @@ function AdminPanel({ theme, onClose }: { theme: Theme; onClose: () => void }) {
           <p className="text-sm mt-1" style={{ color: accent, fontFamily: urdu }}>ایڈمن پینل</p>
         </div>
         <div className="w-full max-w-xs">
-          <input
-            type="password"
-            className="w-full px-4 py-3 rounded-xl text-sm outline-none text-center"
-            placeholder="Enter admin password..."
-            style={{ background: card, color: text, border: `1.5px solid ${accent}60` }}
-            value={pw}
-            onChange={e => { setPw(e.target.value); setPwError(false); }}
-            onKeyDown={e => e.key === "Enter" && handleLogin()}
-          />
-          {pwError && <p className="text-red-400 text-xs text-center mt-1">Incorrect password. Try again.</p>}
-          <button
-            onClick={handleLogin}
-            className="w-full mt-3 py-3 rounded-xl font-bold text-sm cursor-pointer"
-            style={{ background: accent, color: "#000" }}
-          >
-            Login | لاگ ان
-          </button>
+          <p className="text-sm text-center mb-4" style={{ color: text }}>{isLoading ? "Checking your account…" : user ? "Your account needs the admin role assigned in Netlify Identity." : "Sign in with an administrator account."}</p>
+          <Link to="/auth" className="block w-full mt-3 py-3 rounded-xl font-bold text-sm text-center" style={{ background: accent, color: "#000" }}>Account | لاگ ان</Link>
         </div>
         <button onClick={onClose} className="text-xs cursor-pointer" style={{ color: `${text}80` }}>← Back | واپس</button>
       </div>
@@ -511,14 +492,18 @@ export default function Index() {
   const [browserHistory, setBrowserHistory] = useState<string[]>([]);
   const [browserHistoryIdx, setBrowserHistoryIdx] = useState(-1);
 
-  const initMutation = useMutation(api.appData.initializeDefaults);
-  const tickers = useQuery(api.appData.getTickers);
-  const customApps = useQuery(api.appData.getCustomApps);
-  const updateThemeMutation = useMutation(api.appData.updateTheme);
+  const { user } = useAuth();
+  const { data: appData, error: dataError } = useAppData();
+  const tickers = appData?.tickers;
+  const customApps = appData?.customApps;
+  const saveTheme = useSaveTheme();
 
   const theme = getTheme(currentTheme);
 
-  useEffect(() => { void initMutation(); }, [initMutation]);
+  useEffect(() => { setCurrentTheme("emerald"); }, [user?.id]);
+  useEffect(() => {
+    if (!saveTheme.isPending && appData?.theme && THEMES.some(option => option.id === appData.theme)) setCurrentTheme(appData.theme);
+  }, [appData?.theme, saveTheme.isPending]);
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(t);
@@ -526,7 +511,7 @@ export default function Index() {
 
   const handleThemeChange = (id: string) => {
     setCurrentTheme(id);
-    void updateThemeMutation({ theme: id });
+    if (user) saveTheme.mutate(id, { onError: (error) => toast.error(error.message) });
   };
 
   const navigateBrowser = useCallback((url: string) => {
@@ -643,6 +628,7 @@ export default function Index() {
             >
               <span className="text-sm">⚙️</span>
             </button>
+            <Link to="/auth" className="rounded-full px-3 py-1.5 text-[10px] font-semibold" style={{ background: theme.cardBg, color: theme.textColor }} title="Account and saved preferences">{user ? "Account" : "Sign in"}</Link>
           </div>
           <div className="text-right">
             <div className="text-xl font-black font-mono leading-none" style={{ color: txt, textShadow: `${theme.glowColor}` }}>
@@ -652,6 +638,7 @@ export default function Index() {
           </div>
         </div>
 
+        {dataError && <p role="status" className="mb-2 text-[10px]" style={{ color: txt }}>Live content is temporarily unavailable. Built-in apps remain available.</p>}
         <motion.div
           className="text-center py-1.5 rounded-2xl mb-1.5"
           style={{
@@ -945,6 +932,7 @@ export default function Index() {
                 {THEMES.length} Themes
               </span>
             </div>
+            <p role="status" className="mb-3 text-xs" style={{ color: txt }}>{user ? (saveTheme.isPending ? "Saving your theme…" : saveTheme.isError ? "Your theme was not saved. Select it again to retry." : "Theme changes are saved to your account.") : <Link to="/auth" className="underline">Sign in to save your theme across visits.</Link>}</p>
             <div className="grid grid-cols-2 gap-2.5">
               {THEMES.map(t => (
                 <motion.button
