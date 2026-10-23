@@ -5,6 +5,7 @@ import {
   Routes,
   useLocation,
 } from "react-router-dom";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { DefaultProviders } from "./components/providers/default.tsx";
 import AuthCallback from "./pages/auth/Callback.tsx";
 import Account from "./pages/auth/Account.tsx";
@@ -32,6 +33,7 @@ export default function App() {
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <SpeedInsights />
       </BrowserRouter>
     </DefaultProviders>
   );
